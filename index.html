@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepLab - Semantic Image Segmentation</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa; /* Light background for contrast */
+        }
+        .custom-container {
+            margin-top: 40px;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: #ffffff; /* White background for content area */
+        }
+        h2 {
+            color: #ED7D31;
+            margin-bottom: 30px; /* Spacing below the title */
+        }
+        .form-group label {
+            font-weight: bold; /* Bold labels */
+            color: #333; /* Darker text for better readability */
+        }
+        .btn {
+            width: 100%; /* Full-width buttons */
+        }
+        #canvas {
+            border: 1px solid #ccc; /* Subtle border for the canvas */
+            border-radius: 8px; /* Rounded corners */
+            margin-top: 20px;
+        }
+        #legendLabel {
+            font-weight: bold; /* Bold legend label */
+            margin-top: 20px; /* Spacing above legend */
+        }
+        #legends span {
+            border-radius: 5px; /* Rounded corners for legend items */
+            margin: 5px; /* Space between legend items */
+            padding: 10px; /* Padding for legend items */
+            font-weight: 600; /* Slightly bolder text */
+        }
+    </style>
+</head>
+<body>
+    <div class="container custom-container">
+        <h2 class="text-center">DeepLab - Semantic Image Segmentation</h2>
+
+        <div class="form-group">
+            <label for="modelNameSelect">Select Model</label>
+            <select class="form-control" name="modelNameSelect" id="modelNameSelect">
+                <option value="pascal">Pascal</option>
+                <option value="cityscapes">City Scapes</option>
+                <option value="ade20k">ADE20K</option>
+            </select>
+            <button class="btn btn-primary mt-2" id="loadModel">Load Model</button>
+            <p id="modelLoadedStatus" class="text-primary">Model not loaded..</p>
+        </div>
+
+        <div class="form-group">
+            <label for="chooseFiles">Upload Image</label>
+            <input type="file" class="form-control-file" id="chooseFiles" accept="image/*"/>
+            <button class="btn btn-success mt-2" id="segmentImage" disabled>Segment Image</button>
+        </div>
+
+        <img id="image" class="img-fluid" width="500" height="auto" crossorigin="anonymous">
+        <canvas id="canvas" class="mt-2"></canvas>
+        
+        <p id="legendLabel" style="visibility: hidden;" class="mt-3">Legend</p>
+        <div id="legends" class="d-flex flex-wrap mt-2"></div>
+    </div>
+
+    <script src="https://unpkg.com/@tensorflow/tfjs-core@3.3.0/dist/tf-core.js"></script>
+    <script src="https://unpkg.com/@tensorflow/tfjs-converter@3.3.0/dist/tf-converter.js"></script>
+    <script src="https://unpkg.com/@tensorflow/tfjs-backend-webgl@3.3.0/dist/tf-backend-webgl.js"></script>
+    <script src="https://unpkg.com/@tensorflow-models/deeplab@0.2.1/dist/deeplab.js"></script>
+    <script>
+        let model;
+        const chooseFiles = document.getElementById('chooseFiles');
+        const modelNameSelect = document.getElementById("modelNameSelect");
+        const segmentImageButton = document.getElementById("segmentImage");
+        const legendsDiv = document.getElementById("legends");
+        const image = document.getElementById('image');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        chooseFiles.onchange = () => {
+            const [file] = chooseFiles.files;
+            if (file) {
+                image.src = URL.createObjectURL(file);
+            }
+        };
+
+        segmentImageButton.onclick = predict;
+
+        document.getElementById("loadModel").onclick = async () => {
+            segmentImageButton.disabled = true;
+            updateModelLoadStatus("Model Loading...");
+
+            const modelName = modelNameSelect.options[modelNameSelect.selectedIndex].value;
+            await loadModel(modelName);
+            updateModelLoadStatus(modelName + " model loaded!");
+
+            segmentImageButton.disabled = false;
+        };
+
+        async function loadModel(modelName) {
+            model = await deeplab.load({ "base": modelName, "quantizationBytes": 2 });
+        }
+
+        function updateModelLoadStatus(status) {
+            document.getElementById("modelLoadedStatus").innerHTML = status;
+        }
+
+        async function predict() {
+            let prediction = await model.segment(image);
+            renderPrediction(prediction);
+        }
+
+        function renderPrediction(prediction) {
+            const { legend, height, width, segmentationMap } = prediction;
+            console.log(`prediction: ${JSON.stringify(prediction)}`);
+
+            const segmentationMapData = new ImageData(segmentationMap, width, height);
+            canvas.width = width;
+            canvas.height = height;
+            ctx.putImageData(segmentationMapData, 0, 0);
+
+            displayLegends(legend);
+        }
+
+        function displayLegends(legendObj) {
+            legendsDiv.innerHTML = "";
+            document.getElementById("legendLabel").style.visibility = "visible";
+
+            Object.keys(legendObj).forEach((legend) => {
+                const [red, green, blue] = legendObj[legend];
+
+                const span = document.createElement('span');
+                span.innerHTML = legend;
+                span.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
+                span.style.color = '#ffffff';
+
+                legendsDiv.appendChild(span);
+            });
+        }
+    </script>
+</body>
+</html>
+
